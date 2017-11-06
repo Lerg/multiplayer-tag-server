@@ -14,7 +14,7 @@ import (
 )
 
 // Command line argument - server address
-var addr = flag.String("addr", ":8080", "game server address")
+var addr = flag.String("addr", ":80", "game server address")
 
 // Player JSON
 type playerMessage struct {
@@ -76,7 +76,11 @@ func (p *player) processWriteChannel() {
 var players = make([]*player, 0)
 
 // Websocket upgrader from HTTP with default options
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 var nextId = 0
 
@@ -160,6 +164,8 @@ func gameHandler(w http.ResponseWriter, r *http.Request) {
 		currentPlayer.VelocityY = message.VelocityY
 		currentPlayer.Turn = message.Turn
 		currentPlayer.Thrust = message.Thrust
+
+		// Good place to implement validation
 
 		// Notify other players about current player update
 		go func() {
@@ -259,7 +265,7 @@ func updateWorld() {
 }
 
 // Root homepage template
-var homeTemplate = template.Must(template.New("").Parse(`
+var statusTemplate = template.Must(template.New("").Parse(`
 	<!DOCTYPE html>
 	<html>
 		<head>
@@ -272,16 +278,16 @@ var homeTemplate = template.Must(template.New("").Parse(`
 `))
 
 // Serve status page
-func rootHandler(w http.ResponseWriter, r *http.Request) {
-	homeTemplate.Execute(w, len(players))
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	statusTemplate.Execute(w, len(players))
 }
 
 // Server start
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/game", gameHandler) // Game websocket
-	http.HandleFunc("/", rootHandler)     // Status page
+	http.HandleFunc("/status", statusHandler) // Status page
+	http.HandleFunc("/", gameHandler)         // Game websocket
 	go updateWorld()
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
